@@ -69,6 +69,9 @@ def irda_decode_packet(hex_string):
     else:
         command_type = f"Unknown (0x{command_byte:02X})"
 
+    # Determine IRDA TMCC ID 
+    irda_tmcc_byte =  bytes_list[2]
+
     # Determine direction .
     direction_byte = bytes_list[8]
     if direction_byte == 0x01:
@@ -97,7 +100,8 @@ def irda_decode_packet(hex_string):
 
     return {
         "command": command_type,
-        "direction" : direction,
+        "irda_tmcc": irda_tmcc_byte,
+        "direction" : direction_byte,
         "engine_name": engine_name,
         "road_number": road_number,
        # "raw_bytes": bytes_list,
@@ -105,7 +109,7 @@ def irda_decode_packet(hex_string):
 
 # Example usage when running this module directly.
 if __name__ == "__main__":
-    example_hex = ("D1320110FFFF01000019000AD8C6063F0200010256D032340050656E6E73796C76616E696120475039000000000000000000000000000000000037303235000908C3B2010000EADF")
+    example_hex = ("D1320B10FFFF01000019000AD8C6063F0200010256D032340050656E6E73796C76616E696120475039000000000000000000000000000000000037303235000908C3B2010000EADF")
     decoded = irda_decode_packet(example_hex)
     print("Decoded Packet:")
     for key, value in decoded.items():
