@@ -39,6 +39,8 @@ def decode_packet(packet_bytes):
         direction = "Engine"
     elif first_byte == 0xF9:
         direction = "Train"
+    elif first_byte == 0x36:
+        direction = "WIFI Connectg"    
     elif first_byte == 0xFB:
         # For multi–word commands you might have additional bytes.
         return "Multi–word command detected – not implemented in this decoder."
