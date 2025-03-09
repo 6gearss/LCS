@@ -55,8 +55,7 @@ def insert_train_passage(irda_tmcc, direction, engine_name, road_number):
 if __name__ == "__main__":
     # Example continuous hex string without spaces.
     hex_string = (
-        "D1320A
-        10FFFF01000157031AF6F2063F01000102000032300050656E6E73796C76616E696120547261696E204D6173746572000000000000000038373034000908C36001000003DF"
+        "D1320A10FFFF01000157031AF6F2063F01000102000032300050656E6E73796C76616E696120547261696E204D6173746572000000000000000038373034000908C36001000003DF"
     )
     
     # Decode the packet to extract engine name and road number.
