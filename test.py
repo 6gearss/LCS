@@ -116,7 +116,7 @@ def receive_data(sock):
                 print("Decoded Packet:")
                 for key, value in decoded.items():
                     print(f"{key}: {value}")
-                train_db.insert_train_passage ((decoded['engine_name'], decoded['road_number']))
+                train_db.insert_train_passage ((decoded['irda_tmcc']),(decoded['direction']),(decoded['engine_name']), (decoded['road_number']))
 
     except socket.error as e:
         print(f"Socket error: {e}")
