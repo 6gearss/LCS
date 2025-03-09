@@ -3,6 +3,9 @@ import threading
 import ipaddress
 #import lionel_lcs
 import irda_hex_decoder
+import train_db
+
+
 
 # Command constants
 BASE_RECORD_READ = "D1230002DBDF"
@@ -113,6 +116,7 @@ def receive_data(sock):
                 print("Decoded Packet:")
                 for key, value in decoded.items():
                     print(f"{key}: {value}")
+                train_db.insert_train_passage ((decoded['engine_name'], decoded['road_number']))
 
     except socket.error as e:
         print(f"Socket error: {e}")
