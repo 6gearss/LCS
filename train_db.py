@@ -13,7 +13,7 @@ from irda_hex_decoder import irda_decode_packet  # our previously defined module
 
 # Database configuration
 db_config = {
-    'host': '10.70.3.25',
+    'host': '10.70.3.102',
     'user': 'train_operator',
     'password': 'StrongPassword123!',
     'database': 'train_tracking'
