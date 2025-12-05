@@ -33,7 +33,7 @@ def get_wifi_ip():
                 s.connect((target, 80))
                 local_ip = s.getsockname()[0]
                 if local_ip and not local_ip.startswith("127."):
-                    logging.info(f"Local IP determined using target {target}: {local_ip}")
+                    logging.info(f"Local IP determined using target: {local_ip}")
                     return local_ip
         except Exception as e:
             logging.debug(f"Error connecting to {target}: {e}")
