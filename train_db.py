@@ -11,13 +11,9 @@ import random
 import mysql.connector
 from irda_hex_decoder import irda_decode_packet  # our previously defined module
 
-# Database configuration
-db_config = {
-    'host': '10.70.3.102',
-    'user': 'train_operator',
-    'password': 'StrongPassword123!',
-    'database': 'train_tracking'
-}
+import config
+
+# Database configuration is now loaded from config.py
 
 def insert_train_passage(irda_tmcc, direction, engine_name, road_number):
     """
@@ -38,8 +34,10 @@ def insert_train_passage(irda_tmcc, direction, engine_name, road_number):
     """
     values = (irda_tmcc, direction, engine_name, road_number)
 
+    conn = None
+    cursor = None
     try:
-        conn = mysql.connector.connect(**db_config)
+        conn = mysql.connector.connect(**config.DB_CONFIG)
         cursor = conn.cursor()
         cursor.execute(insert_query, values)
         conn.commit()

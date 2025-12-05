@@ -1,0 +1,25 @@
+[Unit]
+Description=LCS Train Monitor Service
+After=network.target mysql.service
+
+[Service]
+# Adjust User/Group to match your Pi user (usually 'pi')
+User=pi
+Group=pi
+
+# Adjust path to match where you cloned the repo (e.g. /home/pi/LCS)
+WorkingDirectory=/home/pi/LCS
+
+# Command to run the app
+ExecStart=/usr/bin/python3 /home/pi/LCS/lcs_monitor.py
+
+# Restart automatically if it crashes
+Restart=always
+RestartSec=5
+
+# Ensure output is logged immediately
+Environment=PYTHONUNBUFFERED=1
+# Environment="LCS_DB_HOST=sql.internal" # Example: Override config here if needed
+
+[Install]
+WantedBy=multi-user.target
