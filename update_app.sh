@@ -8,7 +8,7 @@ echo "=== Starting Update for $SERVICE_NAME ==="
 # 1. Stop the service to release file locks (less relevant for Python, but good practice)
 #    and ensure we restart with clean state.
 echo "Stopping service..."
-sudo systemctl stop $SERVICE_NAME
+systemctl stop $SERVICE_NAME
 
 # 2. Update the code
 echo "Pulling latest changes from git..."
