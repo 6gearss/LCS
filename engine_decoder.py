@@ -152,6 +152,13 @@ def decode_engine_table(packet_bytes):
     if len(data) < 68:
         return {"error": f"Engine data too short: {len(data)} bytes (expected 68)"}
     
+    # Parse Engine Table Data
+    # Based on observation, the structure is:
+    # 1. 15 bytes of parameters (Fields 1-15)
+    # 2. Road Name (33 bytes)
+    # 3. Road Number (5 bytes)
+    # 4. Remaining parameters (Fields 16-20 + others)
+    
     # Parse Control Data (first 8 bytes)
     record_number = data[0]
     process_flags = data[1]
@@ -159,9 +166,12 @@ def decode_engine_table(packet_bytes):
     # data[3] is spare
     valid1 = (data[4] << 8) | data[5]
     valid2 = (data[6] << 8) | data[7]
-    
-    # Parse Engine Table Data (remaining 60 bytes)
+
     offset = 8
+    
+    # Read first block of fields (15 bytes)
+    first_fields = data[offset:offset+15]
+    offset += 15
     
     # Extract strings (null-terminated ASCII)
     road_name_bytes = data[offset:offset+33]
@@ -172,66 +182,38 @@ def decode_engine_table(packet_bytes):
     road_number = bytes(road_number_bytes).decode('ascii', errors='ignore').split('\x00')[0]
     offset += 5
     
-    # Extract single-byte fields
-    loco_type = data[offset]
-    offset += 1
+    # Read remaining fields from the rest of the packet
+    # We expect at least 5 more defined fields (Position, Smoke, Ditch, Brake, Momentum)
+    # plus potential extra bytes.
+    remaining_fields = data[offset:]
     
-    control_type = data[offset]
-    offset += 1
+    # Map fields from the first block (indices relative to first_fields)
+    loco_type = first_fields[0]
+    control_type = first_fields[1]
+    sound_system_type = first_fields[2]
+    class_spec = first_fields[3]
+    tsdb_left = first_fields[4]
+    tsdb_right = first_fields[5]
+    # spare byte at index 6
+    speed_step = first_fields[7]
+    run_level = first_fields[8]
+    labor_bias = first_fields[9]
+    speed_limit = first_fields[10]
+    max_speed = first_fields[11]
+    fuel_level = first_fields[12]
+    water_level = first_fields[13]
+    train_address = first_fields[14]
     
-    sound_system_type = data[offset]
-    offset += 1
-    
-    class_spec = data[offset]
-    offset += 1
-    
-    tsdb_left = data[offset]
-    offset += 1
-    
-    tsdb_right = data[offset]
-    offset += 1
-    
-    # spare byte
-    offset += 1
-    
-    speed_step = data[offset]
-    offset += 1
-    
-    run_level = data[offset]
-    offset += 1
-    
-    labor_bias = data[offset]
-    offset += 1
-    
-    speed_limit = data[offset]
-    offset += 1
-    
-    max_speed = data[offset]
-    offset += 1
-    
-    # Valid2 fields
-    fuel_level = data[offset]
-    offset += 1
-    
-    water_level = data[offset]
-    offset += 1
-    
-    train_address = data[offset]
-    offset += 1
-    
-    train_position_byte = data[offset]
-    offset += 1
-    
-    smoke_level_byte = data[offset]
-    offset += 1
-    
-    ditch_light_byte = data[offset]
-    offset += 1
-    
-    train_brake = data[offset]
-    offset += 1
-    
-    momentum = data[offset]
+    # Map fields from the remaining block
+    # If the packet is short, fill with 0
+    def get_byte(idx):
+        return remaining_fields[idx] if idx < len(remaining_fields) else 0
+
+    train_position_byte = get_byte(0)
+    smoke_level_byte = get_byte(1)
+    ditch_light_byte = get_byte(2)
+    train_brake = get_byte(3)
+    momentum = get_byte(4)
     
     # Build the decoded structure
     decoded = {
