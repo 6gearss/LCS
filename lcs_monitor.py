@@ -97,12 +97,14 @@ def setup_mqtt():
         else:
             logging.error(f"Failed to connect to MQTT broker, return code {rc}")
     
-    def on_disconnect(client, userdata, rc):
+    def on_disconnect(client, userdata, flags, rc, properties=None):
+        logging.info("Disconnected from MQTT broker")
         if rc != 0:
-            logging.warning(f"Unexpected MQTT disconnection. Return code: {rc}")
+            logging.warning(f"Unexpected disconnection. Return code: {rc}")
     
     try:
-        mqtt_client = mqtt.Client(client_id="lcs_monitor", clean_session=True)
+        # Use VERSION2 to avoid DeprecationWarning
+        mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="lcs_monitor", clean_session=True)
         mqtt_client.on_connect = on_connect
         mqtt_client.on_disconnect = on_disconnect
         
