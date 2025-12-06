@@ -3,10 +3,13 @@ import threading
 import ipaddress
 import time
 import logging
+import json
+import atexit
 #import lionel_lcs
 import irda_hex_decoder
 import train_db
 import config
+import paho.mqtt.client as mqtt
 
 # Setup logging
 logging.basicConfig(
@@ -16,6 +19,9 @@ logging.basicConfig(
 
 # Global variable for Server IP
 SERVER_IP = None
+
+# MQTT Client
+mqtt_client = None
 
 def get_wifi_ip():
     """
@@ -72,6 +78,75 @@ def determine_server():
 sent_count = 0
 recv_count = 0
 connection_established = threading.Event()
+
+def setup_mqtt():
+    """
+    Initialize and connect to the MQTT broker.
+    Sets up a Last Will and Testament message for graceful disconnection handling.
+    """
+    global mqtt_client
+    
+    def on_connect(client, userdata, flags, rc):
+        if rc == 0:
+            logging.info(f"Connected to MQTT broker at {config.MQTT_BROKER}:{config.MQTT_PORT}")
+            # Publish service UP status
+            publish_status("up")
+        else:
+            logging.error(f"Failed to connect to MQTT broker, return code {rc}")
+    
+    def on_disconnect(client, userdata, rc):
+        if rc != 0:
+            logging.warning(f"Unexpected MQTT disconnection. Return code: {rc}")
+    
+    try:
+        mqtt_client = mqtt.Client(client_id="lcs_monitor", clean_session=True)
+        mqtt_client.on_connect = on_connect
+        mqtt_client.on_disconnect = on_disconnect
+        
+        # Set Last Will and Testament - published if connection is lost ungracefully
+        will_payload = json.dumps({"status": "down", "timestamp": time.time()})
+        mqtt_client.will_set(config.MQTT_TOPIC_STATUS, will_payload, qos=1, retain=True)
+        
+        mqtt_client.connect(config.MQTT_BROKER, config.MQTT_PORT, keepalive=60)
+        mqtt_client.loop_start()  # Start background thread for MQTT
+        
+        return True
+    except Exception as e:
+        logging.error(f"Failed to setup MQTT: {e}")
+        return False
+
+def publish_status(status):
+    """
+    Publish service status to MQTT.
+    
+    Args:
+        status (str): Either 'up' or 'down'
+    """
+    if mqtt_client and mqtt_client.is_connected():
+        payload = json.dumps({
+            "status": status,
+            "timestamp": time.time(),
+            "server": SERVER_IP
+        })
+        mqtt_client.publish(config.MQTT_TOPIC_STATUS, payload, qos=1, retain=True)
+        logging.info(f"Published MQTT status: {status}")
+    else:
+        logging.warning(f"Cannot publish MQTT status '{status}' - client not connected")
+
+def cleanup_mqtt():
+    """
+    Gracefully disconnect from MQTT broker and publish down status.
+    """
+    global mqtt_client
+    if mqtt_client:
+        try:
+            publish_status("down")
+            time.sleep(0.5)  # Give time for message to be sent
+            mqtt_client.loop_stop()
+            mqtt_client.disconnect()
+            logging.info("MQTT client disconnected")
+        except Exception as e:
+            logging.error(f"Error during MQTT cleanup: {e}")
 
 def process_message(decoded_data, sock):
     global recv_count, sent_count
@@ -143,14 +218,23 @@ def receive_data(sock):
 
 def main():
     global sent_count
+    
+    # Register cleanup handler
+    atexit.register(cleanup_mqtt)
+
+    # Setup MQTT
+    if not setup_mqtt():
+        logging.warning("MQTT setup failed, continuing without MQTT reporting")
 
     # Determine which server to use.
     if not determine_server():
         logging.critical("Terminating due to server determination failure.")
+        cleanup_mqtt()
         return
 
     if SERVER_IP is None:
         logging.critical("SERVER_IP is not set. Exiting.")
+        cleanup_mqtt()
         return
 
     # Create a socket and attempt to connect.
@@ -162,6 +246,8 @@ def main():
         logging.info(f"Connected to {SERVER_IP}:{config.SERVER_PORT}")
     except socket.error as e:
         logging.critical(f"Failed to connect: {e}")
+        publish_status("down")
+        cleanup_mqtt()
         return
     
     # Start a thread to handle incoming data.
@@ -191,6 +277,7 @@ def main():
         if sock:
             sock.close()
         logging.info("Socket closed.")
+        cleanup_mqtt()
 
 if __name__ == "__main__":
     main()

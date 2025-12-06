@@ -39,3 +39,9 @@ NETWORK_SERVER_MAP = {
     "192.168.99.0/24": "192.168.99.1",
     "192.168.111.0/24": "192.168.111.30"
 }
+
+# MQTT Configuration
+MQTT_BROKER = os.getenv('LCS_MQTT_BROKER', 'mqtt.internal')
+MQTT_PORT = int(os.getenv('LCS_MQTT_PORT', 1883))
+MQTT_TOPIC_STATUS = "HSC/status"  # Topic for service status (up/down)
+MQTT_TOPIC_DATA = "HSC/data"      # Topic for data (optional, for future use)
