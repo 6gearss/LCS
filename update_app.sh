@@ -20,7 +20,7 @@ fi
 
 # 3. Restart the service
 echo "Restarting service..."
-sudo systemctl start $SERVICE_NAME
+systemctl start $SERVICE_NAME
 
 # 4. Check status
 echo "Current Status:"
