@@ -43,5 +43,7 @@ NETWORK_SERVER_MAP = {
 # MQTT Configuration
 MQTT_BROKER = os.getenv('LCS_MQTT_BROKER', 'mqtt.internal')
 MQTT_PORT = int(os.getenv('LCS_MQTT_PORT', 1883))
-MQTT_TOPIC_STATUS = "HSC/status"  # Topic for service status (up/down)
-MQTT_TOPIC_DATA = "HSC/data"      # Topic for data (optional, for future use)
+MQTT_TOPIC_STATUS = "HSC/irda/status"  # Topic for service status (UP/DOWN)
+MQTT_TOPIC_IRDA_STATUS = "HSC/irda/base"  # Topic for LCS Base connection status (CONNECTED/DISCONNECTED/ERROR)
+MQTT_TOPIC_BASE_IP = "HSC/irda/base/ip"  # Topic for LCS Base IP address
+MQTT_TOPIC_DATA = "HSC/irda/data"      # Topic for data (optional, for future use)

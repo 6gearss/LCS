@@ -5,11 +5,14 @@ import time
 import logging
 import json
 import atexit
+import paho.mqtt.client as mqtt
+
 #import lionel_lcs
 import irda_hex_decoder
 import train_db
 import config
-import paho.mqtt.client as mqtt
+import engine_decoder
+
 
 # Setup logging
 logging.basicConfig(
@@ -90,7 +93,7 @@ def setup_mqtt():
         if rc == 0:
             logging.info(f"Connected to MQTT broker at {config.MQTT_BROKER}:{config.MQTT_PORT}")
             # Publish service UP status
-            publish_status("up")
+            publish_status("UP")
         else:
             logging.error(f"Failed to connect to MQTT broker, return code {rc}")
     
@@ -104,8 +107,7 @@ def setup_mqtt():
         mqtt_client.on_disconnect = on_disconnect
         
         # Set Last Will and Testament - published if connection is lost ungracefully
-        will_payload = json.dumps({"status": "down", "timestamp": time.time()})
-        mqtt_client.will_set(config.MQTT_TOPIC_STATUS, will_payload, qos=1, retain=True)
+        mqtt_client.will_set(config.MQTT_TOPIC_STATUS, "DOWN", qos=1, retain=True)
         
         mqtt_client.connect(config.MQTT_BROKER, config.MQTT_PORT, keepalive=60)
         mqtt_client.loop_start()  # Start background thread for MQTT
@@ -120,18 +122,38 @@ def publish_status(status):
     Publish service status to MQTT.
     
     Args:
-        status (str): Either 'up' or 'down'
+        status (str): Either 'UP' or 'DOWN'
     """
     if mqtt_client and mqtt_client.is_connected():
-        payload = json.dumps({
-            "status": status,
-            "timestamp": time.time(),
-            "server": SERVER_IP
-        })
-        mqtt_client.publish(config.MQTT_TOPIC_STATUS, payload, qos=1, retain=True)
-        logging.info(f"Published MQTT status: {status}")
+        # Publish simple status value (just the word)
+        mqtt_client.publish(config.MQTT_TOPIC_STATUS, status.upper(), qos=1, retain=True)
+        logging.info(f"Published service status: {status.upper()}")
     else:
-        logging.warning(f"Cannot publish MQTT status '{status}' - client not connected")
+        logging.warning(f"Cannot publish service status '{status}' - client not connected")
+
+def publish_irda_status(status, error_msg=None):
+    """
+    Publish LCS Base connection status to MQTT.
+    
+    Args:
+        status (str): 'CONNECTED', 'DISCONNECTED', or 'ERROR'
+        error_msg (str): Optional error message
+    """
+    if mqtt_client and mqtt_client.is_connected():
+        # Publish simple status value (just the word)
+        mqtt_client.publish(config.MQTT_TOPIC_IRDA_STATUS, status.upper(), qos=1, retain=True)
+        
+        # Publish base IP to separate topic
+        if SERVER_IP:
+            mqtt_client.publish(config.MQTT_TOPIC_BASE_IP, SERVER_IP, qos=1, retain=True)
+        
+        # If there's an error message, publish it to a data topic
+        if error_msg:
+            mqtt_client.publish(f"{config.MQTT_TOPIC_IRDA_STATUS}/error", error_msg, qos=1, retain=False)
+        
+        logging.info(f"Published base status: {status.upper()}")
+    else:
+        logging.warning(f"Cannot publish base status '{status}' - MQTT not connected")
 
 def cleanup_mqtt():
     """
@@ -140,7 +162,7 @@ def cleanup_mqtt():
     global mqtt_client
     if mqtt_client:
         try:
-            publish_status("down")
+            publish_status("DOWN")
             time.sleep(0.5)  # Give time for message to be sent
             mqtt_client.loop_stop()
             mqtt_client.disconnect()
@@ -165,56 +187,122 @@ def process_message(decoded_data, sock):
     else:
         logging.info(f"[R:{recv_count}] Received: {decoded_data}")
 
-    # If characters 3-4 equal "32", process the packet further.
+    # If characters 3-4 equal "32", this is an Engine Table packet
     # Checks index 2 and 3 (0-based) which are the 3rd and 4th chars.
     if len(decoded_data) >= 4 and decoded_data[2:4] == "32":
-        logging.info("IDRA packet detected")
         try:
-            decoded = irda_hex_decoder.irda_decode_packet(decoded_data)
-            logging.info("Decoded Packet:")
-            for key, value in decoded.items():
-                logging.info(f"{key}: {value}")
+            # Convert hex string to bytes for decoding
+            packet_bytes = bytes.fromhex(decoded_data)
             
-            # Use .get() to avoid KeyErrors if decoding fails partly
-            train_db.insert_train_passage(
-                decoded.get('irda_tmcc'),
-                decoded.get('direction'),
-                decoded.get('engine_name'),
-                decoded.get('road_number')
-            )
+            # Decode the engine table structure
+            engine_data = engine_decoder.decode_engine_table(packet_bytes)
+            
+            if "error" in engine_data:
+                logging.warning(f"Engine decode error: {engine_data['error']}")
+            else:
+                # Log key engine information
+                eng = engine_data["engine_data"]
+                ctrl = engine_data["control_data"]
+                
+                logging.info(f"=== Engine Table Record #{ctrl['record_number']} ===")
+                logging.info(f"  {eng['road_name']} #{eng['road_number']}")
+                logging.info(f"  Type: {eng['loco_type']} | Control: {eng['control_type']} | Sound: {eng['sound_system']}")
+                logging.info(f"  Speed: {eng['speed_step']}/199 | Momentum: {eng['momentum_setting']}")
+                
+                train_pos = eng['train_position']
+                logging.info(f"  Train: {train_pos['position']} ({train_pos['direction']})")
+                
+                # Also decode with the old IRDA decoder for database insertion
+                # (keeping backward compatibility)
+                irda_decoded = irda_hex_decoder.irda_decode_packet(decoded_data)
+                
+                # Insert to database
+                train_db.insert_train_passage(
+                    irda_decoded.get('irda_tmcc'),
+                    irda_decoded.get('direction'),
+                    eng['road_name'],  # Use engine decoder's road name
+                    eng['road_number']  # Use engine decoder's road number
+                )
+                
         except Exception as e:
-            logging.error(f"Error processing IDRA packet: {e}")
+            logging.error(f"Error processing Engine Table packet: {e}")
+            import traceback
+            logging.debug(traceback.format_exc())
 
 def receive_data(sock):
     """
     Continuously receive data. Handles TCP buffering by splitting on 'DF'.
+    Returns True if connection was lost, False if terminated normally.
     """
     buffer = ""
     try:
         while True:
             data = sock.recv(config.PDI_RX_PKTSIZE)
             if not data:
-                break
+                logging.warning("Connection closed by server")
+                return True  # Connection lost
             
             # Append new data to buffer
             buffer += data.decode('utf-8', errors='replace')
             
             # Process complete messages ending in 'DF'
-            # Note: config.EOP is 0xDF (int), but protocol strings seem to use "DF"
             while "DF" in buffer:
-                # Split at the first "DF"
-                # We want to include "DF" in the message we process
                 segment, buffer = buffer.split("DF", 1)
                 message = segment + "DF"
-                
-                # Check if it starts with 'D1' (SOP) just to be safe/clean?
-                # The existing code didn't check SOP explicitly every time but let's assume valid framing for now.
                 process_message(message, sock)
                 
     except socket.error as e:
         logging.error(f"Socket error: {e}")
+        return True  # Connection lost
+    except Exception as e:
+        logging.error(f"Unexpected error in receive_data: {e}")
+        return True
     finally:
         logging.info("Receiver thread terminating...")
+
+def connect_to_lcs_base():
+    """
+    Attempt to connect to the LCS Base.
+    Returns (socket, success) tuple.
+    """
+    global sent_count, connection_established
+    
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        sock.connect((SERVER_IP, config.SERVER_PORT))
+        logging.info(f"Connected to LCS Base at {SERVER_IP}:{config.SERVER_PORT}")
+        publish_irda_status("CONNECTED")
+        
+        # Reset connection event for this new connection
+        connection_established.clear()
+        
+        # Start receiver thread
+        receive_thread = threading.Thread(target=receive_data, args=(sock,), daemon=True)
+        receive_thread.start()
+        
+        # Wait for initial packet
+        logging.info("Waiting for initial packet to confirm connection...")
+        if connection_established.wait(timeout=30):
+            # Send WIFI CONNECT command
+            sent_count += 1
+            logging.info(f"[S:{sent_count}] Sending WIFI CONNECT: {config.WIFI_CONNECT}")
+            sock.sendall(config.WIFI_CONNECT.encode('utf-8'))
+            return sock, receive_thread, True
+        else:
+            logging.warning("Timed out waiting for initial packet")
+            sock.close()
+            publish_irda_status("ERROR", "Timeout waiting for initial packet")
+            return None, None, False
+            
+    except socket.error as e:
+        logging.error(f"Failed to connect to LCS Base: {e}")
+        publish_irda_status("DISCONNECTED", str(e))
+        return None, None, False
+    except Exception as e:
+        logging.error(f"Unexpected error connecting to LCS Base: {e}")
+        publish_irda_status("ERROR", str(e))
+        return None, None, False
 
 def main():
     global sent_count
@@ -222,11 +310,11 @@ def main():
     # Register cleanup handler
     atexit.register(cleanup_mqtt)
 
-    # Setup MQTT
+    # Setup MQTT first - this should succeed even if LCS Base is down
     if not setup_mqtt():
         logging.warning("MQTT setup failed, continuing without MQTT reporting")
 
-    # Determine which server to use.
+    # Determine which server to use
     if not determine_server():
         logging.critical("Terminating due to server determination failure.")
         cleanup_mqtt()
@@ -237,46 +325,53 @@ def main():
         cleanup_mqtt()
         return
 
-    # Create a socket and attempt to connect.
-    sock = None
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)  # Timeout for connection attempts.
-        sock.connect((SERVER_IP, config.SERVER_PORT))
-        logging.info(f"Connected to {SERVER_IP}:{config.SERVER_PORT}")
-    except socket.error as e:
-        logging.critical(f"Failed to connect: {e}")
-        publish_status("down")
-        cleanup_mqtt()
-        return
+    # Retry configuration
+    retry_delay = 10  # Start with 10 seconds
+    max_retry_delay = 180     # Max 3 minutes between retries
+    backoff_multiplier = 2
     
-    # Start a thread to handle incoming data.
-    receive_thread = threading.Thread(target=receive_data, args=(sock,), daemon=True)
-    receive_thread.start()
+    running = True
     
-    logging.info("Waiting for initial packet to confirm connection...")
-    if connection_established.wait(timeout=30): # Wait with timeout
-        # Send WIFI CONNECT command.
-        sent_count += 1
-        logging.info(f"[S:{sent_count}] Sending WIFI CONNECT: {config.WIFI_CONNECT}")
-        try:
-            sock.sendall(config.WIFI_CONNECT.encode('utf-8'))
-        except socket.error as e:
-            logging.error(f"Error sending WIFI CONNECT: {e}")
-    else:
-        logging.warning("Timed out waiting for initial packet.")
-
     try:
-        while receive_thread.is_alive():
-            time.sleep(1)  # Efficient wait
+        while running:
+            # Attempt to connect to LCS Base
+            sock, receive_thread, success = connect_to_lcs_base()
+            
+            if success:
+                # Reset retry delay on successful connection
+                retry_delay = 10
+                
+                # Monitor the connection
+                try:
+                    while receive_thread.is_alive():
+                        time.sleep(1)
+                    
+                    # Thread died - connection was lost
+                    logging.warning("Connection to LCS Base lost")
+                    publish_irda_status("DISCONNECTED", "Connection lost")
+                    
+                except KeyboardInterrupt:
+                    logging.info("Shutting down...")
+                    running = False
+                finally:
+                    if sock:
+                        sock.close()
+            
+            # If we're still running, wait before retry
+            if running:
+                logging.info(f"Will retry connection to LCS Base in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                
+                # Increase retry delay with exponential backoff
+                retry_delay = min(retry_delay * backoff_multiplier, max_retry_delay)
+                
     except KeyboardInterrupt:
         logging.info("Shutting down...")
     except Exception as e:
-        logging.error(f"Unexpected error: {e}")
+        logging.error(f"Unexpected error in main loop: {e}")
     finally:
-        if sock:
-            sock.close()
-        logging.info("Socket closed.")
+        logging.info("Service shutting down")
+        publish_irda_status("DISCONNECTED", "Service shutdown")
         cleanup_mqtt()
 
 if __name__ == "__main__":
