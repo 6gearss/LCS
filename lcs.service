@@ -3,15 +3,15 @@ Description=LCS Train Monitor Service
 After=network.target mysql.service
 
 [Service]
-# Adjust User/Group to match your Pi user (usually 'pi')
-User=pi
-Group=pi
+# User/Group set to root as requested (path is /root/LCS)
+User=root
+Group=root
 
-# Adjust path to match where you cloned the repo (e.g. /home/pi/LCS)
-WorkingDirectory=/home/pi/LCS
+# Path to where the repo is cloned
+WorkingDirectory=/root/LCS
 
 # Command to run the app
-ExecStart=/usr/bin/python3 /home/pi/LCS/lcs_monitor.py
+ExecStart=/usr/bin/python3 /root/LCS/lcs_monitor.py
 
 # Restart automatically if it crashes
 Restart=always
