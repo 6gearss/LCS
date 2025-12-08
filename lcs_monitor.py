@@ -89,7 +89,7 @@ def setup_mqtt():
     """
     global mqtt_client
     
-    def on_connect(client, userdata, flags, rc):
+    def on_connect(client, userdata, flags, rc, properties=None):
         if rc == 0:
             logging.info(f"Connected to MQTT broker at {config.MQTT_BROKER}:{config.MQTT_PORT}")
             # Publish service UP status

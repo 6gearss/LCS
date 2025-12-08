@@ -170,6 +170,10 @@ def decode_engine_table(packet_bytes):
     # Parse Engine Table Data (remaining 60 bytes)
     # Analysis of packets shows Engine Data (Road Name) starts at offset 23
     # This implies a 23-byte header/control section or extra unknown bytes before standard engine data
+    
+    # Extract the first block of 15 parameter bytes (Offset 8 to 23)
+    first_fields = data[8:23]
+
     offset = 23
     
     # Extract strings (null-terminated ASCII)
