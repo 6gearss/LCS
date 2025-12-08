@@ -329,8 +329,6 @@ def main():
 
     # Retry configuration
     retry_delay = 10  # Start with 10 seconds
-    max_retry_delay = 180     # Max 3 minutes between retries
-    backoff_multiplier = 2
     
     running = True
     
@@ -364,8 +362,6 @@ def main():
                 logging.info(f"Will retry connection to LCS Base in {retry_delay} seconds...")
                 time.sleep(retry_delay)
                 
-                # Increase retry delay with exponential backoff
-                retry_delay = min(retry_delay * backoff_multiplier, max_retry_delay)
                 
     except KeyboardInterrupt:
         logging.info("Shutting down...")
