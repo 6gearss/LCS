@@ -38,7 +38,7 @@ def create_packet(payload_hex: str) -> str:
 # Example usage:
 if __name__ == "__main__":
     # Example payload
-    input_hex = "34 81 01"
+    input_hex = "321510FFFF010000080008FBFB063F020001025419323200496C6C696E6F69732043656E7472616C204553343441430000000000000000000033303038000108C3D0010000"
     packet_hex = create_packet(input_hex)
     print(f"Input payload: {input_hex}")
     print(f"Generated packet: {packet_hex}")

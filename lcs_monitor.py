@@ -17,7 +17,8 @@ import engine_decoder
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    # format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(message)s'
 )
 
 # Global variable for Server IP
@@ -81,6 +82,7 @@ def determine_server():
 sent_count = 0
 recv_count = 0
 connection_established = threading.Event()
+waiting_for_config_reply = False
 
 def setup_mqtt():
     """
@@ -173,7 +175,7 @@ def cleanup_mqtt():
             logging.error(f"Error during MQTT cleanup: {e}")
 
 def process_message(decoded_data, sock):
-    global recv_count, sent_count
+    global recv_count, sent_count, waiting_for_config_reply
     recv_count += 1
     
     # Mark connection as established on first received packet.
@@ -188,6 +190,15 @@ def process_message(decoded_data, sock):
             logging.error(f"Error sending PING reply: {e}")
     else:
         logging.info(f"[R:{recv_count}] Received: {decoded_data}")
+
+        if waiting_for_config_reply:
+            waiting_for_config_reply = False
+            sent_count += 1
+            logging.info(f"[S:{sent_count}] Sending GET All Status: {config.GET_ALL_STATUS}")
+            try:
+                sock.sendall(config.GET_ALL_STATUS.encode('utf-8'))
+            except socket.error as e:
+                logging.error(f"Error sending GET All Status: {e}")
 
     # If characters 3-4 equal "32", this is an Engine Table packet
     # Checks index 2 and 3 (0-based) which are the 3rd and 4th chars.
@@ -267,7 +278,7 @@ def connect_to_lcs_base():
     Attempt to connect to the LCS Base.
     Returns (socket, success) tuple.
     """
-    global sent_count, connection_established
+    global sent_count, connection_established, waiting_for_config_reply
     
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -290,6 +301,14 @@ def connect_to_lcs_base():
             sent_count += 1
             logging.info(f"[S:{sent_count}] Sending WIFI CONNECT: {config.WIFI_CONNECT}")
             sock.sendall(config.WIFI_CONNECT.encode('utf-8'))
+            
+            # Send GET All Configs command
+            sent_count += 1
+            logging.info(f"[S:{sent_count}] Sending GET All Configs: {config.GET_ALL_CONFIGS}")
+            sock.sendall(config.GET_ALL_CONFIGS.encode('utf-8'))
+            
+            waiting_for_config_reply = True
+            
             return sock, receive_thread, True
         else:
             logging.warning("Timed out waiting for initial packet")
