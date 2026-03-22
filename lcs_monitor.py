@@ -260,11 +260,30 @@ def receive_data(sock):
             # Append new data to buffer
             buffer += data.decode('utf-8', errors='replace')
             
-            # Process complete messages ending in 'DF'
-            while "DF" in buffer:
-                segment, buffer = buffer.split("DF", 1)
-                message = segment + "DF"
-                process_message(message, sock)
+            # Process complete messages bounded by D1 and DF
+            while "D1" in buffer:
+                start_idx = buffer.find("D1")
+                if start_idx != 0:
+                    buffer = buffer[start_idx:]
+                
+                # Look for 'DF' on an even 2-character boundary relative to 'D1'
+                df_idx = -1
+                for i in range(2, len(buffer) - 1, 2):
+                    if buffer[i:i+2] == "DF":
+                        df_idx = i
+                        break
+                
+                if df_idx != -1:
+                    message = buffer[:df_idx+2]
+                    buffer = buffer[df_idx+2:]
+                    process_message(message, sock)
+                else:
+                    # Incomplete message, wait for more data. 
+                    # If buffer gets extremely large without EOP, drop the bad 'D1'
+                    if len(buffer) > 2000:
+                        logging.warning("Buffer too large without finding EOP, dropping corrupted start frame.")
+                        buffer = buffer[2:]
+                    break
                 
     except socket.error as e:
         logging.error(f"Socket error: {e}")
