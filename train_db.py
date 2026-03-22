@@ -62,12 +62,11 @@ if __name__ == "__main__":
     direction = decoded.get("direction", "")
     engine_name = decoded.get("engine_name", "")
     road_number = decoded.get("road_number", "")
-    direction_text = decoded.get("direction_text", "")
+ 
 
     if engine_name and road_number:
         print("Decoded IRDA TMCC ID:", irda_tmcc)
         print("Decoded Direction:", direction)
-        print("Decoded Direction Text:", direction_text)
         print("Decoded Engine Name:", engine_name)
         print("Decoded Road Number:", road_number)
         insert_train_passage(irda_tmcc, direction, engine_name, road_number)

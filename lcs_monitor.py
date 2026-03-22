@@ -13,6 +13,13 @@ import train_db
 import config
 import engine_decoder
 
+def log_raw_hex(hex_str):
+    """Log raw hex string to a file without any timestamps or formatting."""
+    try:
+        with open("communication.log", "a") as f:
+            f.write(f"{hex_str}\n")
+    except Exception as e:
+        logging.error(f"Failed to log raw hex: {e}")
 
 # Setup logging
 logging.basicConfig(
@@ -189,6 +196,7 @@ def process_message(decoded_data, sock):
         except socket.error as e:
             logging.error(f"Error sending PING reply: {e}")
     else:
+        log_raw_hex(decoded_data)
         logging.info(f"[R:{recv_count}] Received: {decoded_data}")
 
         if waiting_for_config_reply:
@@ -197,6 +205,7 @@ def process_message(decoded_data, sock):
             logging.info(f"[S:{sent_count}] Sending GET All Status: {config.GET_ALL_STATUS}")
             try:
                 sock.sendall(config.GET_ALL_STATUS.encode('utf-8'))
+                log_raw_hex(config.GET_ALL_STATUS)
             except socket.error as e:
                 logging.error(f"Error sending GET All Status: {e}")
 
@@ -322,11 +331,13 @@ def connect_to_lcs_base():
             sent_count += 1
             logging.info(f"[S:{sent_count}] Sending WIFI CONNECT: {config.WIFI_CONNECT}")
             sock.sendall(config.WIFI_CONNECT.encode('utf-8'))
+            log_raw_hex(config.WIFI_CONNECT)
             
             # Send GET All Configs command
             sent_count += 1
             logging.info(f"[S:{sent_count}] Sending GET All Configs: {config.GET_ALL_CONFIGS}")
             sock.sendall(config.GET_ALL_CONFIGS.encode('utf-8'))
+            log_raw_hex(config.GET_ALL_CONFIGS)
             
             waiting_for_config_reply = True
             
