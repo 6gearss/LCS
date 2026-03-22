@@ -200,45 +200,47 @@ def process_message(decoded_data, sock):
             except socket.error as e:
                 logging.error(f"Error sending GET All Status: {e}")
 
-    # If characters 3-4 equal "32", this is an Engine Table packet
+    # If characters 3-4 equal "32", this is an IRDA REQ/RESP packet
     # Checks index 2 and 3 (0-based) which are the 3rd and 4th chars.
     if len(decoded_data) >= 4 and decoded_data[2:4] == "32":
         try:
-            # Convert hex string to bytes for decoding
-            packet_bytes = bytes.fromhex(decoded_data)
+            # Decode the packet natively with our newly enhanced IRDA decoder
+            irda_decoded = irda_hex_decoder.irda_decode_packet(decoded_data)
             
-            # Decode the engine table structure
-            engine_data = engine_decoder.decode_engine_table(packet_bytes)
-            
-            if "error" in engine_data:
-                logging.warning(f"Engine decode error: {engine_data['error']}")
-            else:
-                # Log key engine information
-                eng = engine_data["engine_data"]
-                ctrl = engine_data["control_data"]
+            if irda_decoded:
+                tmcc = irda_decoded.get('irda_tmcc', 'N/A')
+                name = irda_decoded.get('engine_name', 'Unknown Engine')
+                road = irda_decoded.get('road_number', 'Unknown')
                 
-                logging.info(f"=== Engine Table Record #{ctrl['record_number']} ===")
-                logging.info(f"  {eng['road_name']} #{eng['road_number']}")
-                logging.info(f"  Type: {eng['loco_type']} | Control: {eng['control_type']} | Sound: {eng['sound_system']}")
-                logging.info(f"  Speed: {eng['speed_step']}/199 | Momentum: {eng['momentum_setting']}")
+                logging.info(f"=== IRDA Engine Record #{tmcc} ===")
+                logging.info(f"  {name} #{road}")
                 
-                train_pos = eng['train_position']
-                logging.info(f"  Train: {train_pos['position']} ({train_pos['direction']})")
+                # We can safely extract prod mapping fields because they are properly indexed
+                p_id = irda_decoded.get('prod_id', 'Unknown')
+                p_rev = irda_decoded.get('prod_rev', 'Unknown')
+                eng_id = irda_decoded.get('engine_id', 'Unknown')
+                train_id = irda_decoded.get('train_id', 'Unknown')
                 
-                # Also decode with the old IRDA decoder for database insertion
-                # (keeping backward compatibility)
-                irda_decoded = irda_hex_decoder.irda_decode_packet(decoded_data)
+                logging.info(f"  Type: {p_id} ({p_rev}) | Engine ID: {eng_id} | Train ID: {train_id}")
+                
+                fuel = irda_decoded.get('fuel_pct', 'N/A')
+                water = irda_decoded.get('water_pct', 'N/A')
+                logging.info(f"  Fuel: {fuel}% | Water: {water}%")
+                
+                dir_txt = irda_decoded.get('direction_text', 'Unknown')
+                odo = irda_decoded.get('odometer', 'Unknown')
+                logging.info(f"  Direction: {dir_txt} | Odometer: {odo} ft")
                 
                 # Insert to database
                 train_db.insert_train_passage(
                     irda_decoded.get('irda_tmcc'),
                     irda_decoded.get('direction'),
-                    eng['road_name'],  # Use engine decoder's road name
-                    eng['road_number']  # Use engine decoder's road number
+                    name, 
+                    road
                 )
                 
         except Exception as e:
-            logging.error(f"Error processing Engine Table packet: {e}")
+            logging.error(f"Error processing IRDA Engine Table packet: {e}")
             import traceback
             logging.debug(traceback.format_exc())
 

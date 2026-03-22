@@ -102,11 +102,11 @@ def irda_decode_packet(hex_string):
     # Fallback to original blind extraction logic just in case
     direction_byte = bytes_list[8] if len(bytes_list) > 8 else None
     if direction_byte == 0x01:
-        direction = "RIGHT"
+        direction_text = "RIGHT"
     elif direction_byte is not None:
-        direction = "LEFT"
+        direction_text = "LEFT"
     else:
-        direction = None
+        direction_text = None
 
     engine_name = ""
     if len(bytes_list) >= 25 + 32:
@@ -119,7 +119,8 @@ def irda_decode_packet(hex_string):
     decoded_info = {
         "command": command_type,
         "irda_tmcc": irda_tmcc_byte,
-        "direction": direction,
+        "direction": direction_byte,
+        "direction_text": direction_text,
         "engine_name": engine_name,
         "road_number": road_number,
     }
@@ -135,7 +136,8 @@ def irda_decode_packet(hex_string):
             # Direction re-confirmed
             if data_len > 8:
                 dir_byte = bytes_list[8]
-                decoded_info["direction"] = "RIGHT" if dir_byte == 0x01 else ("LEFT" if dir_byte == 0x00 else dir_byte)
+                decoded_info["direction"] = dir_byte
+                decoded_info["direction_text"] = "RIGHT" if dir_byte == 0x01 else ("LEFT" if dir_byte == 0x00 else str(dir_byte))
             
             decoded_info["engine_id"] = bytes_list[9] if data_len > 9 else None
             decoded_info["train_id"] = bytes_list[10] if data_len > 10 else None
@@ -192,6 +194,7 @@ def irda_decode_packet(hex_string):
 
 if __name__ == "__main__":
     example_hex = "D1321510FFFF010000080008FBFB063F020001025419323200496C6C696E6F69732043656E7472616C204553343441430000000000000000000033303038000108C3D001000051DF"
+    example_hex = "D1320B10FFFF01000108292DD3C9063F210001025419323200496C6C696E6F69732043656E7472616C204553343441430000000000000000000033303038000108C360180000A0DF"
     print("Decoding Example HEX:", example_hex)
     decoded = irda_decode_packet(example_hex)
     for key, value in decoded.items():
