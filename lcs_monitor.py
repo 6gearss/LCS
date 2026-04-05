@@ -11,7 +11,7 @@ import paho.mqtt.client as mqtt
 import irda_hex_decoder
 import train_db
 import config
-import engine_decoder
+#import engine_decoder
 
 def log_raw_hex(hex_str):
     """Log raw hex string to a file without any timestamps or formatting."""
@@ -221,7 +221,7 @@ def process_message(decoded_data, sock):
                 name = irda_decoded.get('engine_name', 'Unknown Engine')
                 road = irda_decoded.get('road_number', 'Unknown')
                 
-                logging.info(f"=== IRDA Engine Record #{tmcc} ===")
+                logging.info(f"=== IRDA Sensor TMCC #{tmcc} ===")
                 logging.info(f"  {name} #{road}")
                 
                 # We can safely extract prod mapping fields because they are properly indexed
@@ -241,11 +241,13 @@ def process_message(decoded_data, sock):
                 logging.info(f"  Direction: {dir_txt} | Odometer: {odo} ft")
                 
                 # Insert to database
+                train_id_val = train_id if train_id != 'Unknown' else None
                 train_db.insert_train_passage(
                     irda_decoded.get('irda_tmcc'),
                     irda_decoded.get('direction'),
                     name, 
-                    road
+                    road,
+                    train_id_val
                 )
                 
         except Exception as e:

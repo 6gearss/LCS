@@ -15,13 +15,14 @@ import config
 
 # Database configuration is now loaded from config.py
 
-def insert_train_passage(irda_tmcc, direction, engine_name, road_number):
+def insert_train_passage(irda_tmcc, direction, engine_name, road_number, train_id=None):
     """
     Inserts a new train passage record into the TrainPassages table.
 
     Args:
         engine_name (str): The decoded engine name.
         road_number (str): The decoded road number.
+        train_id (int): The decoded train ID.
     """
     # Generate random values for direction and track
     #direction = random.choice(["East", "West"])
@@ -29,10 +30,10 @@ def insert_train_passage(irda_tmcc, direction, engine_name, road_number):
 
     # Note: "road_namuber" is assumed to be the correct column name as per your schema.
     insert_query = """
-        INSERT INTO irda_pass (irda_tmcc, direction, engine_name, road_number, pass_time)
-        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP())
+        INSERT INTO irda_pass (irda_tmcc, direction, engine_name, road_number, train_id, pass_time)
+        VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
     """
-    values = (irda_tmcc, direction, engine_name, road_number)
+    values = (irda_tmcc, direction, engine_name, road_number, train_id)
 
     conn = None
     cursor = None
@@ -62,6 +63,7 @@ if __name__ == "__main__":
     direction = decoded.get("direction", "")
     engine_name = decoded.get("engine_name", "")
     road_number = decoded.get("road_number", "")
+    train_id = decoded.get("train_id")
  
 
     if engine_name and road_number:
@@ -69,6 +71,7 @@ if __name__ == "__main__":
         print("Decoded Direction:", direction)
         print("Decoded Engine Name:", engine_name)
         print("Decoded Road Number:", road_number)
-        insert_train_passage(irda_tmcc, direction, engine_name, road_number)
+        print("Decoded Train ID:", train_id)
+        insert_train_passage(irda_tmcc, direction, engine_name, road_number, train_id)
     else:
         print("Engine name or road number not found in the decoded packet.")
