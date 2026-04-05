@@ -242,12 +242,14 @@ def process_message(decoded_data, sock):
                 
                 # Insert to database
                 train_id_val = train_id if train_id != 'Unknown' else None
+                engine_id_val = eng_id if eng_id != 'Unknown' else None
                 train_db.insert_train_passage(
                     irda_decoded.get('irda_tmcc'),
                     irda_decoded.get('direction'),
                     name, 
                     road,
-                    train_id_val
+                    train_id_val,
+                    engine_id_val
                 )
                 
         except Exception as e:

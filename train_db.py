@@ -15,7 +15,7 @@ import config
 
 # Database configuration is now loaded from config.py
 
-def insert_train_passage(irda_tmcc, direction, engine_name, road_number, train_id=None):
+def insert_train_passage(irda_tmcc, direction, engine_name, road_number, train_id=None, engine_id=None):
     """
     Inserts a new train passage record into the TrainPassages table.
 
@@ -23,6 +23,7 @@ def insert_train_passage(irda_tmcc, direction, engine_name, road_number, train_i
         engine_name (str): The decoded engine name.
         road_number (str): The decoded road number.
         train_id (int): The decoded train ID.
+        engine_id (int): The decoded engine ID.
     """
     # Generate random values for direction and track
     #direction = random.choice(["East", "West"])
@@ -30,10 +31,10 @@ def insert_train_passage(irda_tmcc, direction, engine_name, road_number, train_i
 
     # Note: "road_namuber" is assumed to be the correct column name as per your schema.
     insert_query = """
-        INSERT INTO irda_pass (irda_tmcc, direction, engine_name, road_number, train_id, pass_time)
-        VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
+        INSERT INTO irda_pass (irda_tmcc, direction, engine_name, road_number, train_id, engine_id, pass_time)
+        VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
     """
-    values = (irda_tmcc, direction, engine_name, road_number, train_id)
+    values = (irda_tmcc, direction, engine_name, road_number, train_id, engine_id)
 
     conn = None
     cursor = None
@@ -64,6 +65,7 @@ if __name__ == "__main__":
     engine_name = decoded.get("engine_name", "")
     road_number = decoded.get("road_number", "")
     train_id = decoded.get("train_id")
+    engine_id = decoded.get("engine_id")
  
 
     if engine_name and road_number:
@@ -72,6 +74,7 @@ if __name__ == "__main__":
         print("Decoded Engine Name:", engine_name)
         print("Decoded Road Number:", road_number)
         print("Decoded Train ID:", train_id)
-        insert_train_passage(irda_tmcc, direction, engine_name, road_number, train_id)
+        print("Decoded Engine ID:", engine_id)
+        insert_train_passage(irda_tmcc, direction, engine_name, road_number, train_id, engine_id)
     else:
         print("Engine name or road number not found in the decoded packet.")
